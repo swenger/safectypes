@@ -1,6 +1,8 @@
 import ctypes
 import pygccxml
 
+# see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
+
 def ctypes_from_gccxml(lib, t):
     """Convert a pygccxml type to a ctypes type."""
     if isinstance(t, pygccxml.declarations.const_t):
@@ -68,7 +70,7 @@ def load_dll(lib_name, header_name):
     for declaration in sorted(header[0].declarations):
         if isinstance(declaration, pygccxml.declarations.calldef.free_function_t):
             try:
-                f = getattr(lib, declaration.name) # TODO C++ name mangling?
+                f = getattr(lib, declaration.name) # TODO C++ name mangling
             except AttributeError:
                 continue
 
@@ -84,9 +86,9 @@ def load_dll(lib_name, header_name):
             for decl in declaration.declarations:
                 if isinstance(decl, pygccxml.declarations.variable.variable_t):
                     fields.append((decl.name, ctypes_from_gccxml(lib, decl.type)))
-            setattr(lib, declaration.name, type(declaration.name, (ctypes.Structure,), {"_fields_": fields})) # TODO namespace
+            setattr(lib, declaration.name, type(declaration.name, (ctypes.Structure,), {"_fields_": fields})) # TODO namespaces
         else:
-            print "IGNORING %s %s" % (declaration.__class__.__name__, declaration.name) # TODO handle structs, enums, typedefs etc.
+            print "IGNORING %s %s" % (declaration.__class__.__name__, declaration.name) # TODO handle enums, typedefs etc.
 
     return lib
 
