@@ -1,10 +1,10 @@
 import ctypes
 import pygccxml
 
-def ctypes_from_gccxml(t):
+def ctypes_from_gccxml(lib, t):
     """Convert a pygccxml type to a ctypes type."""
     if isinstance(t, pygccxml.declarations.const_t):
-        return ctypes_from_gccxml(t.base)
+        return ctypes_from_gccxml(lib, t.base)
     if isinstance(t, pygccxml.declarations.pointer_t):
         if isinstance(t.base, pygccxml.declarations.void_t):
             return ctypes.c_void_p
@@ -12,9 +12,9 @@ def ctypes_from_gccxml(t):
             return ctypes.c_char_p
         if isinstance(t.base, pygccxml.declarations.wchar_t):
             return ctypes.c_wchar_p
-        return ctypes.POINTER(ctypes_from_gccxml(t.base))
+        return ctypes.POINTER(ctypes_from_gccxml(lib, t.base))
     if isinstance(t, pygccxml.declarations.array_t):
-        return ctypes.ARRAY(ctypes_from_gccxml(t.base), t.size)
+        return ctypes.ARRAY(ctypes_from_gccxml(lib, t.base), t.size)
     if isinstance(t, pygccxml.declarations.bool_t):
         return ctypes.c_bool
     if isinstance(t, pygccxml.declarations.char_t):
@@ -49,6 +49,8 @@ def ctypes_from_gccxml(t):
         return ctypes.c_wchar
     if isinstance(t, pygccxml.declarations.void_t):
         return None
+    if isinstance(t, pygccxml.declarations.cpptypes.declarated_t):
+        return getattr(lib, t.decl_string[2:]) # TODO namespaces
     # TODO compound, class, declarated, enumeration, reference
     raise NotImplementedError("no ctypes equivalent for %s %s" % (t.__class__.__name__, t.decl_string))
 
@@ -71,17 +73,46 @@ def load_dll(lib_name, header_name):
                 continue
 
             try:
-                f.argtypes = [ctypes_from_gccxml(a.type) for a in declaration.arguments]
-                f.restype = ctypes_from_gccxml(declaration.return_type)
+                f.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments]
+                f.restype = ctypes_from_gccxml(lib, declaration.return_type)
+                print "DECLARING FUNCTION %s(%s) -> %s" % (declaration.name, ", ".join(map(str, f.argtypes)), f.restype)
                 #f.errcheck = ValidateEqual(20002) # DEBUG
             except NotImplementedError, e:
-                print "ignoring %s %s: %s" % (declaration.decl_string, declaration.name, e)
+                print "IGNORING FUNCTION %s %s: %s" % (declaration.decl_string, declaration.name, e)
+        elif isinstance(declaration, pygccxml.declarations.class_t):
+            print "DECLARING CLASS %s" % declaration.name
+            fields = []
+            for decl in declaration.declarations:
+                if isinstance(decl, pygccxml.declarations.variable.variable_t):
+                    fields.append((decl.name, ctypes_from_gccxml(lib, decl.type)))
+            setattr(lib, declaration.name, type(declaration.name, (ctypes.Structure,), {"_fields_": fields})) # TODO namespace
         else:
-            print "ignoring %s %s" % (declaration.__class__.__name__, declaration.name) # TODO handle structs, enums, typedefs etc.
+            print "IGNORING %s %s" % (declaration.__class__.__name__, declaration.name) # TODO handle structs, enums, typedefs etc.
 
     return lib
 
+# TODO varargs
+
 if __name__ == "__main__":
-    dll = load_dll("libm.so", "/usr/include/math.h")
-    print dll.cos(3.14)
+    dll = load_dll("mytest.so", "mytest.h")
+    p1 = dll.Point(1.0, 2.0)
+    p2 = dll.Point(4.0, 1.0)
+    r1 = dll.Rect(p1, p2)
+    f1 = dll.area(r1)
+    print f1, (r1.a.x - r1.b.x) * (r1.a.y - r1.b.y);
+    r2 = dll.Rect()
+    p3 = dll.Point(5, 6)
+    w = 3
+    h = 1
+    dll.rect_from_center(r2, p3, w, h)
+    print (r2.a.x, r2.a.y, r2.b.x, r2.b.y), (p3.x - 0.5 * w, p3.y - 0.5 * h, p3.x + 0.5 * w, p3.y + 0.5 * h)
+
+    """
+    dll = load_dll("libc.so.6", "/usr/include/stdio.h")
+    i = ctypes.c_int()
+    f = ctypes.c_float()
+    s = ctypes.create_string_buffer('\000' * 32)
+    dll.sscanf("1 3.14 Hello", "%d %f %s", ctypes.byref(i), ctypes.byref(f), s)
+    print i.value, f.value, s.value
+    """
 
