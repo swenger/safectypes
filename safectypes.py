@@ -76,7 +76,6 @@ def load_dll(lib_name, header_name):
                 f.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments]
                 f.restype = ctypes_from_gccxml(lib, declaration.return_type)
                 print "DECLARING FUNCTION %s(%s) -> %s" % (declaration.name, ", ".join(map(str, f.argtypes)), f.restype)
-                #f.errcheck = ValidateEqual(20002) # DEBUG
             except NotImplementedError, e:
                 print "IGNORING FUNCTION %s %s: %s" % (declaration.decl_string, declaration.name, e)
         elif isinstance(declaration, pygccxml.declarations.class_t):

@@ -1,8 +1,8 @@
 APP:=mytest.so
 SHELL:=sh
-CXX:=g++ -Wall -O2 -fPIC
-LD:=g++ -shared
-MAKEDEP:=g++ $(CXX) -M
+CXX:=gcc -Wall -O2 -fPIC
+LD:=gcc -shared
+MAKEDEP:=gcc $(CXX) -M
 
 SOURCES:=$(wildcard *.c)
 OBJECTS:=$(SOURCES:.c=.o)
