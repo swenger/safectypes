@@ -75,45 +75,43 @@ class ValidateEqual(object):
 
 def load_dll(lib_name, header_name):
     lib = ctypes.CDLL(lib_name)
-    header = pygccxml.parser.parse([header_name])[0]
-    declarations = header.declarations[:]
+    declarations = pygccxml.parser.parse([header_name])[0].declarations
 
-    while declarations:
-        for declaration in declarations:
-            if isinstance(declaration, pygccxml.declarations.enumeration_t):
-                setattr(lib, declaration.name, type(declaration.name, (object,), dict(declaration.values)))
-            elif isinstance(declaration, pygccxml.declarations.typedef_t):
-                setattr(lib, declaration.name, declaration.type)
-            elif isinstance(declaration, pygccxml.declarations.class_t): # TODO resolve circular dependencies
+    for declaration in sorted(declarations, key=lambda x: x.location.line if x.location else 0):
+        if isinstance(declaration, pygccxml.declarations.enumeration_t):
+            setattr(lib, declaration.name, type(declaration.name, (object,), dict(declaration.values)))
+        elif isinstance(declaration, pygccxml.declarations.typedef_t):
+            setattr(lib, declaration.name, declaration.type)
+        elif isinstance(declaration, pygccxml.declarations.class_t): # TODO resolve circular dependencies
+            try:
+                fields = []
                 try:
-                    fields = []
-                    try:
-                        for v in declaration.variables():
-                            fields.append((v.name, ctypes_from_gccxml(lib, v.type)))
-                    except RuntimeError:
-                        pass # no variables
-                    setattr(lib, declaration.name, type(declaration.name, (ctypes.Structure,), {"_fields_": fields}))
-                except AttributeError:
-                    print "postponing class %s" % declaration.name
-                    continue
-                except NotImplementedError:
-                    print "skipping class %s" % declaration.name
-            declarations.remove(declaration)
-
-    try:
-        for declaration in header.free_functions():
+                    for v in declaration.variables():
+                        fields.append((v.name, ctypes_from_gccxml(lib, v.type)))
+                except RuntimeError:
+                    pass # no variables
+                setattr(lib, declaration.name, type(declaration.name, (ctypes.Structure,), {"_fields_": fields}))
+            except NotImplementedError:
+                print "skipping class %s" % declaration.name
+        if isinstance(declaration, pygccxml.declarations.free_function_t):
             try:
                 func = getattr(lib, declaration.name)
                 func.restype = ctypes_from_gccxml(lib, declaration.return_type)
                 func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments]
             except (AttributeError, NotImplementedError):
                 pass
-    except RuntimeError:
-        pass # no functions
 
     return lib
 
 if __name__ == "__main__":
+    dll = load_dll("libandor.so", "/usr/local/include/atmcdLXd.h")
+    for key, value in sorted(dll.__dict__.items()):
+        if not key.startswith("_"):
+            try:
+                print "%s %s(%s)" % (value.restype.__name__, key, ", ".join(a.__name__ for a in value.argtypes or []))
+            except AttributeError:
+                pass
+
     dll = load_dll("mytest.so", "mytest.h")
     p1 = dll.Point(1.0, 2.0)
     p2 = dll.Point(4.0, 1.0)
@@ -126,14 +124,6 @@ if __name__ == "__main__":
     h = 1
     dll.rect_from_center(r2, p3, w, h)
     print (r2.a.x, r2.a.y, r2.b.x, r2.b.y), (p3.x - 0.5 * w, p3.y - 0.5 * h, p3.x + 0.5 * w, p3.y + 0.5 * h)
-
-    dll = load_dll("libandor.so", "/usr/local/include/atmcdLXd.h")
-    for key, value in sorted(dll.__dict__.items()):
-        if not key.startswith("_"):
-            try:
-                print "%s %s(%s)" % (value.restype.__name__, key, ", ".join(a.__name__ for a in value.argtypes or []))
-            except AttributeError:
-                pass
 
     """
     dll = load_dll("libc.so.6", "/usr/include/stdio.h")
