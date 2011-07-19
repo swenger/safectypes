@@ -100,13 +100,14 @@ def load_dll(lib_name, header_name):
             try:
                 func = getattr(lib, declaration.name)
                 func.restype = ctypes_from_gccxml(lib, declaration.return_type)
-                func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments]
+                func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments] # TODO use a.attributes for gccxml attributes
             except (AttributeError, NotImplementedError):
                 pass
 
     return lib
 
 if __name__ == "__main__":
+    """
     dll = load_dll("libandor.so", "/usr/local/include/atmcdLXd.h")
     for key, value in sorted(dll.__dict__.items()):
         if not key.startswith("_"):
@@ -114,6 +115,7 @@ if __name__ == "__main__":
                 print "%s %s(%s)" % (value.restype.__name__, key, ", ".join(a.__name__ for a in value.argtypes or []))
             except AttributeError:
                 pass
+    """
 
     dll = load_dll("mytest.so", "mytest.h")
     p1 = dll.Point(1.0, 2.0)
