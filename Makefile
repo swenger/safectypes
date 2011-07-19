@@ -1,6 +1,6 @@
 APP:=mytest.so
 SHELL:=sh
-CXX:=gcc -Wall -O2 -fPIC
+CXX:=gcc -Wall -O2 -fPIC -std=c99
 LD:=ld -shared
 MAKEDEP:=$(CXX) -M
 

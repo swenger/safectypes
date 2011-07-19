@@ -100,7 +100,10 @@ def load_dll(lib_name, header_name):
             try:
                 func = getattr(lib, declaration.name)
                 func.restype = ctypes_from_gccxml(lib, declaration.return_type)
-                func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments] # TODO use a.attributes for gccxml attributes
+                # TODO use a.name for named arguments, a.default_value for default values, a.attributes for gccxml attributes
+                func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments]
+                print declaration.name, declaration.attributes # DEBUG
+                for a in declaration.arguments: print declaration.name, a.name, a.attributes # DEBUG
             except (AttributeError, NotImplementedError):
                 pass
 
