@@ -1,4 +1,5 @@
 import ctypes
+import os
 import pygccxml
 
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
@@ -78,6 +79,8 @@ def load_dll(lib_name, header_name):
     declarations = pygccxml.parser.parse([header_name])[0].declarations
 
     for declaration in sorted(declarations, key=lambda x: x.location.line if x.location else 0):
+        if not declaration.location or os.path.basename(declaration.location.file_name) == "gccxml_builtins.h": # skip default includes
+            continue
         if isinstance(declaration, pygccxml.declarations.enumeration_t):
             setattr(lib, declaration.name, type(declaration.name, (object,), dict(declaration.values)))
         elif isinstance(declaration, pygccxml.declarations.typedef_t):
