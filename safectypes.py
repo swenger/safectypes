@@ -1,5 +1,6 @@
 import ctypes
 import os
+import re
 import pygccxml
 
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
@@ -74,6 +75,95 @@ class ValidateEqual(object):
         if result != self.value:
             raise self.exc("%s returned %s" % (func.__name__, result))
 
+class Argument(object):
+    def __init__(self, name):
+        self.name = name
+
+class CallHandler(object):
+    attribute_re = re.compile(r'\A(\w+)\s*\(\s*(.*)\s*\)\s*')
+
+    @staticmethod
+    def parse_parentheses(s):
+        objs = [""]
+        level = 0
+        for c in s:
+            if c == "(":
+                level += 1
+                objs[-1] = objs[-1] + c
+            elif c == ")":
+                level -= 1
+                objs[-1] = objs[-1] + c
+            elif c == "," and level == 0:
+                objs.append("")
+            else:
+                objs[-1] = objs[-1] + c
+        objs = [x.strip() for x in objs]
+        if len(objs) == 1 and len(objs[0]) == 0:
+            return []
+        else:
+            return objs
+
+    def __init__(self, func, declaration):
+        self.func = func
+        self.name = declaration.name
+        self.returns = None
+        self.arguments = [Argument(a.name) for a in declaration.arguments]
+
+        attributes = CallHandler.parse_parentheses(declaration.attributes or "")
+        for attribute in attributes:
+            attribute_type, attribute_params = CallHandler.attribute_re.match(attribute).groups()
+            if attribute_type != "gccxml":
+                continue
+            attribute_params = CallHandler.parse_parentheses(attribute_params)
+            attribute_name, attribute_params = attribute_params[0], attribute_params[1:]
+
+            if attribute_name == "returns":
+                assert len(attribute_params) == 1
+                self.returns = int(attribute_params[0]) # TODO cast to appropriate declaration.return_type
+
+        for pos, argument in enumerate(declaration.arguments or []):
+            arg_attributes = CallHandler.parse_parentheses(argument.attributes or "")
+            for attribute in arg_attributes:
+                attribute_type, attribute_params = CallHandler.attribute_re.match(attribute).groups()
+                if attribute_type != "gccxml":
+                    continue
+                attribute_params = CallHandler.parse_parentheses(attribute_params)
+                attribute_name, attribute_params = attribute_params[0], attribute_params[1:]
+
+                if attribute_name == "default":
+                    assert len(attribute_params) == 1
+                    self.arguments[pos].default_value = int(attribute_params[0]) # TODO cast to appropriate argument.type
+                elif attribute_name == "size":
+                    assert len(attribute_params) > 0
+                    self.arguments[pos].size = attribute_params[1:]
+                elif attribute_name == "out":
+                    assert len(attribute_params) == 0
+                    self.arguments[pos].out = True
+
+    def __call__(self, *args, **kwargs):
+        if len(args) > len(self.arguments):
+            raise RuntimeError("too many arguments")
+        args = list(args)
+        for arg in self.arguments[:len(args)]:
+            if arg.name in kwargs:
+                raise RuntimeError("argument '%s' specified twice" % arg.name)
+        for arg in self.arguments[len(args):]:
+            if arg.name in kwargs:
+                args.append(kwargs[arg.name])
+            else:
+                try:
+                    args.append(arg.default_value)
+                except AttributeError:
+                    raise RuntimeError("argument '%s' has to be specified" % arg.name)
+
+        # TODO handle out parameters and sizes
+        retval = self.func(*args)
+        if self.returns is not None:
+            if retval != self.returns:
+                raise RuntimeError("%s returned %s instead of %s" % (self.name, repr(retval), repr(self.returns)))
+        else:
+            return retval
+
 def load_dll(lib_name, header_name):
     lib = ctypes.CDLL(lib_name)
     declarations = pygccxml.parser.parse([header_name])[0].declarations
@@ -100,10 +190,8 @@ def load_dll(lib_name, header_name):
             try:
                 func = getattr(lib, declaration.name)
                 func.restype = ctypes_from_gccxml(lib, declaration.return_type)
-                # TODO use a.name for named arguments, a.default_value for default values, a.attributes for gccxml attributes
                 func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments]
-                print declaration.name, declaration.attributes # DEBUG
-                for a in declaration.arguments: print declaration.name, a.name, a.attributes # DEBUG
+                setattr(lib, declaration.name, CallHandler(func, declaration))
             except (AttributeError, NotImplementedError):
                 pass
 

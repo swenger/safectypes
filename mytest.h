@@ -7,10 +7,12 @@
 #define _out_ __attribute((gccxml("out")))
 #define _size_(...) __attribute((gccxml("size", #__VA_ARGS__)))
 #define _returns_(X) __attribute((gccxml("returns", #X)))
+#define _default_(X) __attribute((gccxml("default", #X)))
 #else
 #define _out_
-#define _returns_(X)
 #define _size_(...)
+#define _returns_(X)
+#define _default_(X)
 #endif
 
 struct Point {
@@ -30,7 +32,7 @@ union Something {
 
 float area(const struct Rect *r);
 
-_returns_(42) int rect_from_center(_out_ struct Rect *r, const struct Point *c, const float w, const float h);
+_returns_(42) int rect_from_center(_out_ struct Rect *r, const struct Point *c, _default_(1) const float w, _default_(1) const float h);
 
 _returns_(0) int multiply(const int w, const int h, _out_ _size_(w,h) float *result, _size_(w,h) const float *a, _size_(w,h) const float *b);
 
