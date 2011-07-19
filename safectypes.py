@@ -60,8 +60,10 @@ def ctypes_from_gccxml(lib, t):
     if isinstance(t, pygccxml.declarations.void_t):
         return None
     if isinstance(t, pygccxml.declarations.cpptypes.declarated_t):
-        return getattr_rec(lib, [x for x in t.decl_string.split("::") if x]) # resolve namespace
-    # TODO compound, class, enumeration, reference, ellipsis
+        return ctypes_from_gccxml(lib, getattr_rec(lib, [x for x in t.decl_string.split("::") if x])) # resolve namespace
+    if type(t) == type(ctypes.Structure) and issubclass(t, ctypes.Structure): # TODO etc
+        return t
+    # TODO compound, class, enumeration, reference, ellipsis, free_function_type
     raise NotImplementedError("no ctypes equivalent for %s %s" % (t.__class__.__name__, t.decl_string))
 
 class ValidateEqual(object):
@@ -74,33 +76,36 @@ class ValidateEqual(object):
 def load_dll(lib_name, header_name):
     lib = ctypes.CDLL(lib_name)
     header = pygccxml.parser.parse([header_name])[0]
+    declarations = header.declarations[:]
 
-    # classes
-    try:
-        for c in sorted(header.classes()):
-            fields = []
-            for v in c.variables():
-                fields.append((v.name, ctypes_from_gccxml(lib, v.type)))
-            setattr(lib, c.name, type(c.name, (ctypes.Structure,), {"_fields_": fields}))
-            for alias in c.aliases:
-                setattr(lib, alias.name, getattr(lib, c.name))
-    except RuntimeError:
-        pass # no classes
+    while declarations:
+        for declaration in declarations:
+            if isinstance(declaration, pygccxml.declarations.enumeration_t):
+                setattr(lib, declaration.name, type(declaration.name, (object,), dict(declaration.values)))
+            elif isinstance(declaration, pygccxml.declarations.typedef_t):
+                setattr(lib, declaration.name, declaration.type)
+            elif isinstance(declaration, pygccxml.declarations.class_t): # TODO resolve circular dependencies
+                try:
+                    fields = []
+                    try:
+                        for v in declaration.variables():
+                            fields.append((v.name, ctypes_from_gccxml(lib, v.type)))
+                    except RuntimeError:
+                        pass # no variables
+                    setattr(lib, declaration.name, type(declaration.name, (ctypes.Structure,), {"_fields_": fields}))
+                except AttributeError:
+                    print "postponing class %s" % declaration.name
+                    continue
+                except NotImplementedError:
+                    print "skipping class %s" % declaration.name
+            declarations.remove(declaration)
 
-    # enums
     try:
-        for e in sorted(header.enums()):
-            setattr(lib, e.name, type(e.name, (object,), dict(e.values)))
-    except RuntimeError:
-        pass # no enums
-
-    # functions
-    try:
-        for f in sorted(header.free_functions()):
+        for declaration in header.free_functions():
             try:
-                func = getattr(lib, f.name)
-                func.restype = ctypes_from_gccxml(lib, f.return_type)
-                func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in f.arguments]
+                func = getattr(lib, declaration.name)
+                func.restype = ctypes_from_gccxml(lib, declaration.return_type)
+                func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments]
             except (AttributeError, NotImplementedError):
                 pass
     except RuntimeError:
@@ -121,6 +126,14 @@ if __name__ == "__main__":
     h = 1
     dll.rect_from_center(r2, p3, w, h)
     print (r2.a.x, r2.a.y, r2.b.x, r2.b.y), (p3.x - 0.5 * w, p3.y - 0.5 * h, p3.x + 0.5 * w, p3.y + 0.5 * h)
+
+    dll = load_dll("libandor.so", "/usr/local/include/atmcdLXd.h")
+    for key, value in sorted(dll.__dict__.items()):
+        if not key.startswith("_"):
+            try:
+                print "%s %s(%s)" % (value.restype.__name__, key, ", ".join(a.__name__ for a in value.argtypes or []))
+            except AttributeError:
+                pass
 
     """
     dll = load_dll("libc.so.6", "/usr/include/stdio.h")
