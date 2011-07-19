@@ -30,7 +30,7 @@ union Something {
 
 float area(const struct Rect *r);
 
-_returns_(42) int rect_from_center(_out_ struct Rect *r, const struct Point *c, const float w=1, const float h=1);
+_returns_(42) int rect_from_center(_out_ struct Rect *r, const struct Point *c, const float w, const float h);
 
 _returns_(0) int multiply(const int w, const int h, _out_ _size_(w,h) float *result, _size_(w,h) const float *a, _size_(w,h) const float *b);
 
