@@ -3,8 +3,16 @@ import pygccxml
 
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
 
+def getattr_rec(obj, names):
+    if len(names) == 0:
+        return obj
+    else:
+        return getattr_rec(getattr(obj, names[0]), names[1:])
+
 def ctypes_from_gccxml(lib, t):
     """Convert a pygccxml type to a ctypes type."""
+    if isinstance(t, pygccxml.declarations.restrict_t):
+        return ctypes_from_gccxml(lib, t.base)
     if isinstance(t, pygccxml.declarations.const_t):
         return ctypes_from_gccxml(lib, t.base)
     if isinstance(t, pygccxml.declarations.pointer_t):
@@ -52,8 +60,8 @@ def ctypes_from_gccxml(lib, t):
     if isinstance(t, pygccxml.declarations.void_t):
         return None
     if isinstance(t, pygccxml.declarations.cpptypes.declarated_t):
-        return getattr(lib, t.decl_string[2:]) # TODO namespaces
-    # TODO compound, class, declarated, enumeration, reference
+        return getattr_rec(lib, [x for x in t.decl_string.split("::") if x]) # resolve namespace
+    # TODO compound, class, enumeration, reference, ellipsis
     raise NotImplementedError("no ctypes equivalent for %s %s" % (t.__class__.__name__, t.decl_string))
 
 class ValidateEqual(object):
@@ -65,34 +73,40 @@ class ValidateEqual(object):
 
 def load_dll(lib_name, header_name):
     lib = ctypes.CDLL(lib_name)
-    header = pygccxml.parser.parse([header_name])
+    header = pygccxml.parser.parse([header_name])[0]
 
-    for declaration in sorted(header[0].declarations):
-        if isinstance(declaration, pygccxml.declarations.calldef.free_function_t):
-            try:
-                f = getattr(lib, declaration.name) # TODO C++ name mangling
-            except AttributeError:
-                continue
-
-            try:
-                f.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments]
-                f.restype = ctypes_from_gccxml(lib, declaration.return_type)
-                print "DECLARING FUNCTION %s(%s) -> %s" % (declaration.name, ", ".join(map(str, f.argtypes)), f.restype)
-            except NotImplementedError, e:
-                print "IGNORING FUNCTION %s %s: %s" % (declaration.decl_string, declaration.name, e)
-        elif isinstance(declaration, pygccxml.declarations.class_t):
-            print "DECLARING CLASS %s" % declaration.name
+    # classes
+    try:
+        for c in sorted(header.classes()):
             fields = []
-            for decl in declaration.declarations:
-                if isinstance(decl, pygccxml.declarations.variable.variable_t):
-                    fields.append((decl.name, ctypes_from_gccxml(lib, decl.type)))
-            setattr(lib, declaration.name, type(declaration.name, (ctypes.Structure,), {"_fields_": fields})) # TODO namespaces
-        else:
-            print "IGNORING %s %s" % (declaration.__class__.__name__, declaration.name) # TODO handle enums, typedefs etc.
+            for v in c.variables():
+                fields.append((v.name, ctypes_from_gccxml(lib, v.type)))
+            setattr(lib, c.name, type(c.name, (ctypes.Structure,), {"_fields_": fields}))
+            for alias in c.aliases:
+                setattr(lib, alias.name, getattr(lib, c.name))
+    except RuntimeError:
+        pass # no classes
+
+    # enums
+    try:
+        for e in sorted(header.enums()):
+            setattr(lib, e.name, type(e.name, (object,), dict(e.values)))
+    except RuntimeError:
+        pass # no enums
+
+    # functions
+    try:
+        for f in sorted(header.free_functions()):
+            try:
+                func = getattr(lib, f.name)
+                func.restype = ctypes_from_gccxml(lib, f.return_type)
+                func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in f.arguments]
+            except (AttributeError, NotImplementedError):
+                pass
+    except RuntimeError:
+        pass # no functions
 
     return lib
-
-# TODO varargs
 
 if __name__ == "__main__":
     dll = load_dll("mytest.so", "mytest.h")
