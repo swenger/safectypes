@@ -2,7 +2,12 @@
 #define _MYTEST_H
 
 #define SOME_CONSTANT 1
+
+#ifdef __GCCXML__
 #define _out_ __attribute((gccxml("out")))
+#else
+#define _out_
+#endif
 
 struct Point {
     float x;
