@@ -1,6 +1,9 @@
 #ifndef _MYTEST_H
 #define _MYTEST_H
 
+#define SOME_CONSTANT 1
+#define _out_ __attribute((gccxml("out")))
+
 struct Point {
     float x;
     float y;
@@ -18,7 +21,7 @@ union Something {
 
 float area(const struct Rect *r);
 
-void rect_from_center(struct Rect *r, const struct Point *c, const float w, const float h);
+void rect_from_center(_out_ struct Rect *r, const struct Point *c, const float w, const float h);
 
 #endif
 
