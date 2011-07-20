@@ -7,6 +7,8 @@ import pygccxml
 
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
 
+# TODO handle #defined constants
+
 def getattr_rec(obj, names):
     if len(names) == 0:
         return obj
