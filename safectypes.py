@@ -119,7 +119,7 @@ class CallHandler(object):
 
             if attribute_name == "returns":
                 assert len(attribute_params) == 1
-                self.returns = int(attribute_params[0]) # TODO cast to appropriate declaration.return_type
+                self.returns = attribute_params[0]
 
         for pos, argument in enumerate(declaration.arguments or []):
             arg_attributes = CallHandler.parse_parentheses(argument.attributes or "")
@@ -132,7 +132,7 @@ class CallHandler(object):
 
                 if attribute_name == "default":
                     assert len(attribute_params) == 1
-                    self.arguments[pos].default_value = int(attribute_params[0]) # TODO cast to appropriate argument.type
+                    self.arguments[pos].default_value = attribute_params[0]
                 elif attribute_name == "size":
                     assert len(attribute_params) > 0
                     self.arguments[pos].size = attribute_params[1:]
@@ -144,23 +144,26 @@ class CallHandler(object):
         if len(args) > len(self.arguments):
             raise RuntimeError("too many arguments")
         args = list(args)
-        for arg in self.arguments[:len(args)]:
+        for arg, value in zip(self.arguments, args):
             if arg.name in kwargs:
                 raise RuntimeError("argument '%s' specified twice" % arg.name)
+            else:
+                kwargs[arg.name] = value
         for arg in self.arguments[len(args):]:
             if arg.name in kwargs:
                 args.append(kwargs[arg.name])
             else:
                 try:
-                    args.append(arg.default_value)
+                    args.append(eval(arg.default_value, kwargs)) # TODO defer evaluation until all arguments have been assigned
+                    kwargs[arg.name] = args[-1]
                 except AttributeError:
                     raise RuntimeError("argument '%s' has to be specified" % arg.name)
 
         # TODO handle out parameters and sizes
         retval = self.func(*args)
         if self.returns is not None:
-            if retval != self.returns:
-                raise RuntimeError("%s returned %s instead of %s" % (self.name, repr(retval), repr(self.returns)))
+            if retval != eval(self.returns, kwargs):
+                raise RuntimeError("%s returned %s instead of %s" % (self.name, repr(retval), self.returns))
         else:
             return retval
 
@@ -217,8 +220,8 @@ if __name__ == "__main__":
     r2 = dll.Rect()
     p3 = dll.Point(5, 6)
     w = 3
-    h = 1
-    dll.rect_from_center(r2, p3, w, h)
+    h = w
+    dll.rect_from_center(r2, p3, w)
     print (r2.a.x, r2.a.y, r2.b.x, r2.b.y), (p3.x - 0.5 * w, p3.y - 0.5 * h, p3.x + 0.5 * w, p3.y + 0.5 * h)
 
     """
