@@ -109,6 +109,7 @@ class CallHandler(object):
         self.returns = None
         self.arguments = [Argument(a.name) for a in declaration.arguments]
 
+        # parse gccxml attributes for function from header file
         attributes = CallHandler.parse_parentheses(declaration.attributes or "")
         for attribute in attributes:
             attribute_type, attribute_params = CallHandler.attribute_re.match(attribute).groups()
@@ -121,6 +122,7 @@ class CallHandler(object):
                 assert len(attribute_params) == 1
                 self.returns = attribute_params[0]
 
+        # parse gccxml attributes for arguments from header file
         for pos, argument in enumerate(declaration.arguments or []):
             arg_attributes = CallHandler.parse_parentheses(argument.attributes or "")
             for attribute in arg_attributes:
@@ -143,23 +145,43 @@ class CallHandler(object):
     def __call__(self, *args, **kwargs):
         if len(args) > len(self.arguments):
             raise RuntimeError("too many arguments")
+
+        # evaluate positional arguments
         args = list(args)
         for arg, value in zip(self.arguments, args):
             if arg.name in kwargs:
                 raise RuntimeError("argument '%s' specified twice" % arg.name)
             else:
                 kwargs[arg.name] = value
-        for arg in self.arguments[len(args):]:
+
+        # evaluate keyword and default arguments
+        args_to_eval = []
+        for pos, arg in zip(range(len(args), len(self.arguments)), self.arguments[len(args):]):
             if arg.name in kwargs:
                 args.append(kwargs[arg.name])
             else:
                 try:
-                    args.append(eval(arg.default_value, kwargs)) # TODO defer evaluation until all arguments have been assigned
-                    kwargs[arg.name] = args[-1]
+                    args.append(None)
+                    args_to_eval.append((pos, arg.name, arg.default_value))
                 except AttributeError:
                     raise RuntimeError("argument '%s' has to be specified" % arg.name)
 
+        # evaluate default arguments which may depend on each other
+        no_change = 0
+        while args_to_eval:
+            if no_change >= len(args_to_eval):
+                raise RuntimeError("circular dependency in default arguments")
+            pos, name, default = args_to_eval.pop()
+            try:
+                kwargs[name] = args[pos] = eval(default, kwargs)
+                no_change = 0
+            except NameError:
+                args_to_eval.append((pos, name, default))
+                no_change += 1
+
         # TODO handle out parameters and sizes
+
+        # call function and check return value
         retval = self.func(*args)
         if self.returns is not None:
             returns = eval(self.returns, kwargs)
@@ -222,7 +244,7 @@ if __name__ == "__main__":
     p3 = dll.Point(5, 6)
     w = 3
     h = w
-    dll.rect_from_center(r2, p3, w)
+    dll.rect_from_center(r2, p3, h=h)
     print (r2.a.x, r2.a.y, r2.b.x, r2.b.y), (p3.x - 0.5 * w, p3.y - 0.5 * h, p3.x + 0.5 * w, p3.y + 0.5 * h)
 
     """
