@@ -1,6 +1,7 @@
 import ctypes
 import os
 import re
+
 import pygccxml
 
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
@@ -62,10 +63,10 @@ def ctypes_from_gccxml(lib, t):
     if isinstance(t, pygccxml.declarations.void_t):
         return None
     if isinstance(t, pygccxml.declarations.cpptypes.declarated_t):
-        return ctypes_from_gccxml(lib, getattr_rec(lib, [x for x in t.decl_string.split("::") if x])) # resolve namespace
-    if type(t) == type(ctypes.Structure) and issubclass(t, ctypes.Structure): # TODO etc
+        return ctypes_from_gccxml(lib, getattr_rec(lib, [x for x in t.decl_string.split("::") if x])) # resolve namespace into nested modules
+    if type(t) == type(ctypes.Structure) and issubclass(t, ctypes.Structure):
         return t
-    # TODO compound, class, enumeration, reference, ellipsis, free_function_type
+    # TODO if necessary, add: compound, class, enumeration, reference, ellipsis, free_function_type, ctypes.*
     raise NotImplementedError("no ctypes equivalent for %s %s" % (t.__class__.__name__, t.decl_string))
 
 class ValidateEqual(object):
@@ -179,7 +180,7 @@ class CallHandler(object):
                 args_to_eval.append((pos, name, default))
                 no_change += 1
 
-        # TODO handle out parameters and sizes
+        # TODO handle out parameters and sizes (numpy arrays)
 
         # call function and check return value
         retval = self.func(*args)
@@ -194,6 +195,7 @@ def load_dll(lib_name, header_name):
     lib = ctypes.CDLL(lib_name)
     declarations = pygccxml.parser.parse([header_name])[0].declarations
 
+    # TODO handle C++ name mangling and function overloading (possibly ambiguous!)
     for declaration in sorted(declarations, key=lambda x: x.location.line if x.location else 0):
         if not declaration.location or os.path.basename(declaration.location.file_name) == "gccxml_builtins.h": # skip default includes
             continue
@@ -202,6 +204,7 @@ def load_dll(lib_name, header_name):
         elif isinstance(declaration, pygccxml.declarations.typedef_t):
             setattr(lib, declaration.name, declaration.type)
         elif isinstance(declaration, pygccxml.declarations.class_t): # TODO resolve circular dependencies
+            # TODO currently, this only handles structs (no member functions); add creating of member functions
             try:
                 fields = []
                 try:
@@ -212,7 +215,7 @@ def load_dll(lib_name, header_name):
                 setattr(lib, declaration.name, type(declaration.name, (ctypes.Structure,), {"_fields_": fields}))
             except NotImplementedError:
                 print "skipping class %s" % declaration.name
-        if isinstance(declaration, pygccxml.declarations.free_function_t):
+        elif isinstance(declaration, pygccxml.declarations.free_function_t):
             try:
                 func = getattr(lib, declaration.name)
                 func.restype = ctypes_from_gccxml(lib, declaration.return_type)
@@ -220,6 +223,7 @@ def load_dll(lib_name, header_name):
                 setattr(lib, declaration.name, CallHandler(func, declaration))
             except (AttributeError, NotImplementedError):
                 pass
+        # TODO handle namespaces (create nested modules)
 
     return lib
 
