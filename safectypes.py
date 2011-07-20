@@ -163,7 +163,7 @@ class CallHandler(object):
         retval = self.func(*args)
         if self.returns is not None:
             if retval != eval(self.returns, kwargs):
-                raise RuntimeError("%s returned %s instead of %s" % (self.name, repr(retval), self.returns))
+                raise RuntimeError("%s returned %s instead of %s (%s)" % (self.name, repr(retval), self.returns, eval(self.returns, kwargs)))
         else:
             return retval
 
