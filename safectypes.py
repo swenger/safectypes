@@ -120,6 +120,7 @@ class Argument(object):
         self.name = name
 
 class CallHandler(object):
+    # TODO autogenerate docstring
     attribute_re = re.compile(r'\A(\w+)\s*\(\s*(.*)\s*\)\s*')
 
     @staticmethod
