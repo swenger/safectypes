@@ -70,6 +70,41 @@ def ctypes_from_gccxml(lib, t):
     # TODO if necessary, add: compound, class, enumeration, reference, ellipsis, free_function_type, ctypes.*
     raise NotImplementedError("no ctypes equivalent for %s %s" % (t.__class__.__name__, t.decl_string))
 
+def numpy_from_ctypes(t):
+    d = {
+            #ctypes.c_wchar: numpy.wchar,
+            ctypes.c_bool: numpy.bool,
+            ctypes.c_double: numpy.double,
+            ctypes.c_longlong: numpy.longlong,
+            ctypes.c_short: numpy.short,
+            #ctypes.c_ulong: numpy.ulong,
+            ctypes.c_int: numpy.int,
+            ctypes.c_int32: numpy.int32,
+            #ctypes.c_buffer: numpy.buffer,
+            ctypes.c_longdouble: numpy.longdouble,
+            ctypes.c_long: numpy.long,
+            #ctypes.c_char_p: numpy.char_p,
+            ctypes.c_ushort: numpy.ushort,
+            #ctypes.c_wchar_p: numpy.wchar_p,
+            ctypes.c_int64: numpy.int64,
+            ctypes.c_int16: numpy.int16,
+            ctypes.c_uint64: numpy.uint64,
+            ctypes.c_ubyte: numpy.ubyte,
+            ctypes.c_char: numpy.char,
+            ctypes.c_uint32: numpy.uint32,
+            ctypes.c_float: numpy.float32,
+            ctypes.c_int8: numpy.int8,
+            ctypes.c_byte: numpy.byte,
+            ctypes.c_ulonglong: numpy.ulonglong,
+            #ctypes.c_voidp: numpy.voidp,
+            ctypes.c_uint16: numpy.uint16,
+            ctypes.c_uint: numpy.uint,
+            #ctypes.c_void_p: numpy.void_p,
+            #ctypes.c_size_t: numpy.size_t,
+            ctypes.c_uint8: numpy.uint8,
+            }
+    return d[t]
+
 class ValidateEqual(object):
     def __init__(self, value, exc=Exception):
         self.value, self.exc = value, exc
@@ -85,7 +120,7 @@ class CallHandler(object):
     attribute_re = re.compile(r'\A(\w+)\s*\(\s*(.*)\s*\)\s*')
 
     @staticmethod
-    def parse_parentheses(s):
+    def parse_parentheses(s, separator=","):
         objs = [""]
         level = 0
         for c in s:
@@ -95,7 +130,7 @@ class CallHandler(object):
             elif c == ")":
                 level -= 1
                 objs[-1] = objs[-1] + c
-            elif c == "," and level == 0:
+            elif c == separator and level == 0:
                 objs.append("")
             else:
                 objs[-1] = objs[-1] + c
@@ -126,7 +161,7 @@ class CallHandler(object):
 
         # parse gccxml attributes for arguments from header file
         for pos, argument in enumerate(declaration.arguments or []):
-            arg_attributes = CallHandler.parse_parentheses(argument.attributes or "")
+            arg_attributes = CallHandler.parse_parentheses(argument.attributes or "", " ")
             for attribute in arg_attributes:
                 attribute_type, attribute_params = CallHandler.attribute_re.match(attribute).groups()
                 if attribute_type != "gccxml":
@@ -139,7 +174,7 @@ class CallHandler(object):
                     self.arguments[pos].default_value = attribute_params[0]
                 elif attribute_name == "size":
                     assert len(attribute_params) > 0
-                    self.arguments[pos].size = attribute_params[1:]
+                    self.arguments[pos].size = attribute_params
                     try:
                         self.arguments[pos].contained_type = ctypes_from_gccxml(lib, argument.type.base)
                     except AttributeError:
@@ -212,7 +247,7 @@ class CallHandler(object):
         if args:
             raise TypeError("%s() takes at most %d non-keyword arguments (%d given)" % (self.name, n_args_max, n_args_given))
 
-        # evaluate arguments which may depend on each other TODO size
+        # evaluate arguments which may depend on each other TODO evaluate size, too?
         no_change = 0
         while args_to_eval:
             if no_change >= len(args_to_eval):
@@ -234,22 +269,38 @@ class CallHandler(object):
                 arguments[pos] = arg.contained_type()
 
         # handle arrays
-        contiguous_arrays = []
         for pos, arg in enumerate(self.arguments):
             if "size" in arg.__dict__:
-                shape = tuple(eval(x, kwargs) for x in arg.size)
-                assert arguments[pos].shape == shape # check size
-                contiguous_arrays.append(numpy.ascontiguousarray(arguments[pos])) # store reference to contiguous array to avoid garbage collector
-                arguments[pos] = contiguous_arrays[-1].data # replace by data pointer
+                # tell ctypes to check array properties
+                l = self.func.argtypes
+                l[pos] = numpy.ctypeslib.ndpointer(
+                        ndim=len(self.arguments[pos].size),
+                        dtype=numpy_from_ctypes(self.arguments[pos].contained_type),
+                        flags="CONTIGUOUS",
+                        shape=tuple(eval(x, kwargs) for x in arg.size),
+                        )
+                self.func.argtypes = l
 
-        # call function and check return value
+        # call function
         retval = self.func(*arguments)
+
+        # build output list
+        outputs = []
+        for pos, arg in enumerate(self.arguments):
+            if "out" in arg.__dict__:
+                outputs.append(arguments[pos])
+    
+        # check return value
         if self.returns is not None:
             returns = eval(self.returns, kwargs)
             if retval != returns:
                 raise RuntimeError("%s returned %s instead of %s (%s)" % (self.name, repr(retval), self.returns, returns))
+            if len(outputs) == 1:
+                return outputs[0]
+            else:
+                return tuple(outputs)
         else:
-            return retval
+            return (retval,) + tuple(outputs)
 
 def load_dll(lib_name, header_name):
     lib = ctypes.CDLL(lib_name)
@@ -304,20 +355,17 @@ if __name__ == "__main__":
     r1 = dll.Rect(p1, p2)
     f1 = dll.area(r1)
     print f1, (r1.a.x - r1.b.x) * (r1.a.y - r1.b.y);
-    r2 = dll.Rect()
     p3 = dll.Point(5, 6)
     w = 3
     h = w
-    dll.rect_from_center(p3, h=h, r=r2)
+    r2 = dll.rect_from_center(p3, h=h)
     print (r2.a.x, r2.a.y, r2.b.x, r2.b.y), (p3.x - 0.5 * w, p3.y - 0.5 * h, p3.x + 0.5 * w, p3.y + 0.5 * h)
 
-    """
-    a = numpy.ones((3, 4))
-    b = numpy.ones((3, 4))
-    c = numpy.zeros((3, 4))
+    a = 2 * numpy.ones((3, 4), dtype=numpy.float32)
+    b = 3 * numpy.ones((3, 4), dtype=numpy.float32)
+    c = numpy.zeros((3, 4), dtype=numpy.float32)
     dll.multiply(result=c, a=a, b=b)
     print c
-    """
 
     """
     dll = load_dll("libc.so.6", "/usr/include/stdio.h")
