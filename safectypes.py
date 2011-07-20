@@ -8,6 +8,7 @@ import pygccxml
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
 
 # TODO handle #defined constants
+# TODO suppress pygccxml output and popen deprecation warning
 
 def getattr_rec(obj, names):
     if len(names) == 0:
