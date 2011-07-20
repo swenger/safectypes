@@ -13,11 +13,6 @@ struct Rect {
     struct Point b;
 };
 
-union Something {
-    int i;
-    float f;
-};
-
 float area(const struct Rect *r);
 
 _returns_(42) int rect_from_center(
