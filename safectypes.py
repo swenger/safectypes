@@ -2,6 +2,7 @@ import ctypes
 import os
 import re
 
+import numpy
 import pygccxml
 
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
@@ -104,7 +105,7 @@ class CallHandler(object):
         else:
             return objs
 
-    def __init__(self, func, declaration):
+    def __init__(self, lib, func, declaration):
         self.func = func
         self.name = declaration.name
         self.returns = None
@@ -139,51 +140,110 @@ class CallHandler(object):
                 elif attribute_name == "size":
                     assert len(attribute_params) > 0
                     self.arguments[pos].size = attribute_params[1:]
+                    try:
+                        self.arguments[pos].contained_type = ctypes_from_gccxml(lib, argument.type.base)
+                    except AttributeError:
+                        raise TypeError("argument %s has a size attribute but is not of pointer type" % argument.name)
                 elif attribute_name == "out":
                     assert len(attribute_params) == 0
                     self.arguments[pos].out = True
+                    try:
+                        self.arguments[pos].contained_type = ctypes_from_gccxml(lib, argument.type.base)
+                    except AttributeError:
+                        raise TypeError("argument %s has an out attribute but is not of pointer type" % argument.name)
+                elif attribute_name == "value":
+                    assert len(attribute_params) == 1
+                    self.arguments[pos].value = attribute_params[0]
 
     def __call__(self, *args, **kwargs):
-        if len(args) > len(self.arguments):
-            raise RuntimeError("too many arguments")
+        n_args_max = sum("value" not in a.__dict__ for a in self.arguments)
+        n_args_min = sum("value" not in a.__dict__ and "default_value" not in a.__dict__ and "out" not in a.__dict__ for a in self.arguments)
+        n_args_given = len(args)
 
-        # evaluate positional arguments
         args = list(args)
-        for arg, value in zip(self.arguments, args):
-            if arg.name in kwargs:
-                raise RuntimeError("argument '%s' specified twice" % arg.name)
-            else:
-                kwargs[arg.name] = value
-
-        # evaluate keyword and default arguments
+        arguments = []
         args_to_eval = []
-        for pos, arg in zip(range(len(args), len(self.arguments)), self.arguments[len(args):]):
-            if arg.name in kwargs:
-                args.append(kwargs[arg.name])
-            else:
-                try:
-                    args.append(None)
-                    args_to_eval.append((pos, arg.name, arg.default_value))
-                except AttributeError:
-                    raise RuntimeError("argument '%s' has to be specified" % arg.name)
+        args_to_create = []
+        for arg in self.arguments:
+            # try to set predefined value
+            try:
+                args_to_eval.append((len(arguments), arg.name, arg.value))
+                arguments.append(None)
+                continue
+            except AttributeError:
+                pass
 
-        # evaluate default arguments which may depend on each other
+            # try to read positional argument
+            try:
+                if "out" not in arg.__dict__: # out arguments should be optional and are therefore never positional
+                    arguments.append(args.pop(0))
+                    if arg.name in kwargs:
+                        raise TypeError("%s() got multiple values for keyword argument '%s'" % (self.name, arg.name))
+                    kwargs[arg.name] = arguments[-1]
+                    continue
+            except IndexError:
+                pass
+
+            # try to read keyword argument
+            try:
+                arguments.append(kwargs[arg.name])
+                continue
+            except KeyError:
+                pass
+
+            # try to read default argument
+            try:
+                args_to_eval.append((len(arguments), arg.name, arg.default_value))
+                arguments.append(None)
+                continue
+            except AttributeError:
+                pass
+
+            # handle output arguments
+            if "out" in arg.__dict__:
+                args_to_create.append((len(arguments), arg))
+                arguments.append(None)
+                continue
+
+            # argument is missing
+            raise TypeError("%s() takes at least %d non-keyword arguments (%d given)" % (self.name, n_args_min, n_args_given))
+
+        # make sure no positional arguments remain
+        if args:
+            raise TypeError("%s() takes at most %d non-keyword arguments (%d given)" % (self.name, n_args_max, n_args_given))
+
+        # evaluate arguments which may depend on each other TODO size
         no_change = 0
         while args_to_eval:
             if no_change >= len(args_to_eval):
-                raise RuntimeError("circular dependency in default arguments")
+                raise RuntimeError("circular dependency in arguments")
             pos, name, default = args_to_eval.pop()
             try:
-                kwargs[name] = args[pos] = eval(default, kwargs)
+                kwargs[name] = arguments[pos] = eval(default, kwargs)
                 no_change = 0
             except NameError:
                 args_to_eval.append((pos, name, default))
                 no_change += 1
 
-        # TODO handle out parameters and sizes (numpy arrays)
+        # create out parameters
+        for pos, arg in args_to_create:
+            try:
+                shape = tuple(eval(x, kwargs) for x in arg.size)
+                arguments[pos] = numpy.empty(shape, dtype=numpy_from_ctypes(arg.contained_type))
+            except AttributeError:
+                arguments[pos] = arg.contained_type()
+
+        # handle arrays
+        contiguous_arrays = []
+        for pos, arg in enumerate(self.arguments):
+            if "size" in arg.__dict__:
+                shape = tuple(eval(x, kwargs) for x in arg.size)
+                assert arguments[pos].shape == shape # check size
+                contiguous_arrays.append(numpy.ascontiguousarray(arguments[pos])) # store reference to contiguous array to avoid garbage collector
+                arguments[pos] = contiguous_arrays[-1].data # replace by data pointer
 
         # call function and check return value
-        retval = self.func(*args)
+        retval = self.func(*arguments)
         if self.returns is not None:
             returns = eval(self.returns, kwargs)
             if retval != returns:
@@ -203,7 +263,7 @@ def load_dll(lib_name, header_name):
             setattr(lib, declaration.name, type(declaration.name, (object,), dict(declaration.values)))
         elif isinstance(declaration, pygccxml.declarations.typedef_t):
             setattr(lib, declaration.name, declaration.type)
-        elif isinstance(declaration, pygccxml.declarations.class_t): # TODO resolve circular dependencies
+        elif isinstance(declaration, pygccxml.declarations.class_t): # TODO resolve circular dependencies and forward declarations
             # TODO currently, this only handles structs (no member functions); add creating of member functions
             try:
                 fields = []
@@ -220,7 +280,7 @@ def load_dll(lib_name, header_name):
                 func = getattr(lib, declaration.name)
                 func.restype = ctypes_from_gccxml(lib, declaration.return_type)
                 func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments]
-                setattr(lib, declaration.name, CallHandler(func, declaration))
+                setattr(lib, declaration.name, CallHandler(lib, func, declaration))
             except (AttributeError, NotImplementedError):
                 pass
         # TODO handle namespaces (create nested modules)
@@ -248,8 +308,16 @@ if __name__ == "__main__":
     p3 = dll.Point(5, 6)
     w = 3
     h = w
-    dll.rect_from_center(r2, p3, h=h)
+    dll.rect_from_center(p3, h=h, r=r2)
     print (r2.a.x, r2.a.y, r2.b.x, r2.b.y), (p3.x - 0.5 * w, p3.y - 0.5 * h, p3.x + 0.5 * w, p3.y + 0.5 * h)
+
+    """
+    a = numpy.ones((3, 4))
+    b = numpy.ones((3, 4))
+    c = numpy.zeros((3, 4))
+    dll.multiply(result=c, a=a, b=b)
+    print c
+    """
 
     """
     dll = load_dll("libc.so.6", "/usr/include/stdio.h")
