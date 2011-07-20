@@ -162,8 +162,9 @@ class CallHandler(object):
         # TODO handle out parameters and sizes
         retval = self.func(*args)
         if self.returns is not None:
-            if retval != eval(self.returns, kwargs):
-                raise RuntimeError("%s returned %s instead of %s (%s)" % (self.name, repr(retval), self.returns, eval(self.returns, kwargs)))
+            returns = eval(self.returns, kwargs)
+            if retval != returns:
+                raise RuntimeError("%s returned %s instead of %s (%s)" % (self.name, repr(retval), self.returns, returns))
         else:
             return retval
 
