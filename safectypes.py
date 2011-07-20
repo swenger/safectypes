@@ -349,24 +349,6 @@ if __name__ == "__main__":
                 pass
     """
 
-    dll = load_dll("mytest.so", "mytest.h")
-    p1 = dll.Point(1.0, 2.0)
-    p2 = dll.Point(4.0, 1.0)
-    r1 = dll.Rect(p1, p2)
-    f1 = dll.area(r1)
-    print f1, (r1.a.x - r1.b.x) * (r1.a.y - r1.b.y);
-    p3 = dll.Point(5, 6)
-    w = 3
-    h = w
-    r2 = dll.rect_from_center(p3, h=h)
-    print (r2.a.x, r2.a.y, r2.b.x, r2.b.y), (p3.x - 0.5 * w, p3.y - 0.5 * h, p3.x + 0.5 * w, p3.y + 0.5 * h)
-
-    a = 2 * numpy.ones((3, 4), dtype=numpy.float32)
-    b = 3 * numpy.ones((3, 4), dtype=numpy.float32)
-    c = numpy.zeros((3, 4), dtype=numpy.float32)
-    dll.multiply(result=c, a=a, b=b)
-    print c
-
     """
     dll = load_dll("libc.so.6", "/usr/include/stdio.h")
     i = ctypes.c_int()
