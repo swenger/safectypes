@@ -1,6 +1,8 @@
 #ifndef _MYTEST_H
 #define _MYTEST_H
 
+#include <math.h>
+
 #include "safectypes.h"
 
 struct Point {
@@ -29,6 +31,12 @@ _returns_(0) int multiply(
         _size_(w,h) const float *a,
         _size_(w,h) const float *b
         );
+
+_returns_(0) int mysincos(double value, _out_ double *s, _out_ double *c) {
+	*s= sin(value);
+	*c= cos(value);
+	return 0;
+}
 
 #endif
 

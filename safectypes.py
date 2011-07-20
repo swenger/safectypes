@@ -292,7 +292,10 @@ class CallHandler(object):
         outputs = []
         for pos, arg in enumerate(self.arguments):
             if "out" in arg.__dict__:
-                outputs.append(arguments[pos])
+                if arguments[pos].__class__.__module__ == "ctypes" and arguments[pos].__class__.__name__.startswith("c_"):
+                    outputs.append(arguments[pos].value)
+                else:
+                    outputs.append(arguments[pos])
     
         # check return value
         if self.returns is not None:
