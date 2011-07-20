@@ -9,6 +9,7 @@ import pygccxml
 
 # TODO handle #defined constants
 # TODO suppress pygccxml output and popen deprecation warning
+# TODO handle string arguments (and possibly lists) correctly
 
 def getattr_rec(obj, names):
     if len(names) == 0:
