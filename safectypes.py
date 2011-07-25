@@ -356,6 +356,7 @@ def load_dll(lib_name, header_name):
             except (AttributeError, NotImplementedError):
                 pass
         elif isinstance(declaration, pygccxml.declarations.variable_t):
+            # TODO cast value into correct type
             setattr(lib, declaration.name, declaration.value) # handle global variables (for use in attributes and as module constants)
         # TODO handle namespaces (create nested modules)
 
