@@ -1,15 +1,22 @@
 import ctypes
 import os
 import re
+import subprocess
 
 import numpy
 import pygccxml
 
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
 
-# TODO handle #defined constants
+# TODO handle #defined constants (gccxml -E -dM) and global variables
 # TODO suppress pygccxml output and popen deprecation warning
 # TODO handle string arguments (and possibly lists) correctly
+
+def get_defines(headerfile, progname="gccxml"):
+    stdout, stderr = subprocess.Popen([progname, "-E", "-dM", headerfile], stdout=subprocess.PIPE).communicate()
+    define_re = re.compile(r'#define ([a-zA-Z_][a-zA-Z0-9_]*) ([^\n]*)\n')
+    return dict(define_re.findall(stdout))
+    #return stdout.strip().split("\n")
 
 def getattr_rec(obj, names):
     if len(names) == 0:
@@ -347,6 +354,7 @@ def load_dll(lib_name, header_name):
     return lib
 
 if __name__ == "__main__":
+    print get_defines("mytest.h")
     """
     dll = load_dll("libandor.so", "/usr/local/include/atmcdLXd.h")
     for key, value in sorted(dll.__dict__.items()):
