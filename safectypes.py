@@ -8,7 +8,6 @@ import pygccxml
 
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
 
-# TODO handle #defined constants (gccxml -E -dM) and global variables
 # TODO suppress pygccxml output and popen deprecation warning
 # TODO handle string arguments (and possibly lists) correctly
 
@@ -16,7 +15,6 @@ def get_defines(headerfile, progname="gccxml"):
     stdout, stderr = subprocess.Popen([progname, "-E", "-dM", headerfile], stdout=subprocess.PIPE).communicate()
     define_re = re.compile(r'#define ([a-zA-Z_][a-zA-Z0-9_]*) ([^\n]*)\n')
     return dict(define_re.findall(stdout))
-    #return stdout.strip().split("\n")
 
 def getattr_rec(obj, names):
     if len(names) == 0:
@@ -153,6 +151,7 @@ class CallHandler(object):
             return objs
 
     def __init__(self, lib, func, declaration):
+        self.lib = lib
         self.func = func
         self.name = declaration.name
         self.returns = None
@@ -266,7 +265,9 @@ class CallHandler(object):
                 raise RuntimeError("circular dependency in arguments")
             pos, name, default = args_to_eval.pop()
             try:
-                kwargs[name] = arguments[pos] = eval(default, kwargs)
+                d = self.lib.__dict__.copy()
+                d.update(kwargs)
+                kwargs[name] = arguments[pos] = eval(default, d) # TODO cast to python type corresponding to argument type
                 no_change = 0
             except NameError:
                 args_to_eval.append((pos, name, default))
@@ -307,7 +308,9 @@ class CallHandler(object):
     
         # check return value
         if self.returns is not None:
-            returns = eval(self.returns, kwargs)
+            d = self.lib.__dict__.copy()
+            d.update(kwargs)
+            returns = type(retval)(eval(self.returns, d))
             if retval != returns:
                 raise RuntimeError("%s returned %s instead of %s (%s)" % (self.name, repr(retval), self.returns, returns))
             if len(outputs) == 1:
@@ -319,6 +322,9 @@ class CallHandler(object):
 
 def load_dll(lib_name, header_name):
     lib = ctypes.CDLL(lib_name)
+    global_variables = get_defines(header_name)
+    for key, value in global_variables.items(): # handle #defined constants (for use in attributes and as module constants)
+        setattr(lib, key, value)
     declarations = pygccxml.parser.parse([header_name])[0].declarations
 
     # TODO handle C++ name mangling and function overloading (possibly ambiguous!)
@@ -349,6 +355,8 @@ def load_dll(lib_name, header_name):
                 setattr(lib, declaration.name, CallHandler(lib, func, declaration))
             except (AttributeError, NotImplementedError):
                 pass
+        elif isinstance(declaration, pygccxml.declarations.variable_t):
+            setattr(lib, declaration.name, declaration.value) # handle global variables (for use in attributes and as module constants)
         # TODO handle namespaces (create nested modules)
 
     return lib

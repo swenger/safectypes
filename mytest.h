@@ -5,6 +5,9 @@
 
 #include "safectypes.h"
 
+#define OK 42
+const int okay = 0;
+
 struct Point {
     float x;
     float y;
@@ -17,7 +20,7 @@ struct Rect {
 
 float area(const struct Rect *r);
 
-_returns_(42) int rect_from_center(
+_returns_(OK) int rect_from_center(
         _out_ struct Rect *r,
         const struct Point *c,
         _default_(h) const float w,
@@ -32,10 +35,10 @@ _returns_(0) int multiply(
         _size_(w,h) const float *b
         );
 
-_returns_(0) int mysincos(double value, _out_ double *s, _out_ double *c) {
+_returns_(okay) int mysincos(double value, _out_ double *s, _out_ double *c) {
 	*s= sin(value);
 	*c= cos(value);
-	return 0;
+	return okay;
 }
 
 #endif
