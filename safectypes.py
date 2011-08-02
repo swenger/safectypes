@@ -331,7 +331,7 @@ def load_dll(lib_name, header_name):
     lib = ctypes.CDLL(lib_name)
     global_variables = get_defines(header_name)
     for key, value in global_variables.items(): # handle #defined constants (for use in attributes and as module constants)
-        setattr(lib, key, value)
+        setattr(lib, key, eval(value)) # TODO C-style evaluation
     declarations = pygccxml.parser.parse([header_name])[0].declarations
 
     # TODO handle C++ name mangling and function overloading (possibly ambiguous!)
