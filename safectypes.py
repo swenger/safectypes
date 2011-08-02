@@ -9,7 +9,9 @@ import pygccxml
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
 
 # TODO suppress pygccxml output and popen deprecation warning
-# TODO handle string arguments (and possibly lists) correctly
+# TODO handle string arguments
+# TODO convert lists to arrays when necessary
+# TODO exclude reserved and deprecated functions
 
 def get_defines(headerfile, progname="gccxml"):
     stdout, stderr = subprocess.Popen([progname, "-E", "-dM", headerfile], stdout=subprocess.PIPE).communicate()
