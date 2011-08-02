@@ -333,7 +333,7 @@ def load_dll(lib_name, header_name):
     for key, value in global_variables.items(): # handle #defined constants (for use in attributes and as module constants)
         try:
             value = eval(value) # TODO C-style evaluation
-        except SyntaxError:
+        except:
             pass
         setattr(lib, key, value)
     declarations = pygccxml.parser.parse([header_name])[0].declarations
