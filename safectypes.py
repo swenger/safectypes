@@ -167,7 +167,8 @@ class CallHandler(object):
             attribute_name, attribute_params = attribute_params[0], attribute_params[1:]
 
             if attribute_name == "returns":
-                assert len(attribute_params) == 1
+                assert len(attribute_params) == 1, \
+                        "'returns' attribute of %s should have one parameter, but parameters are '%s'" % (self.name, attribute_params)
                 self.returns = attribute_params[0]
 
         # parse gccxml attributes for arguments from header file
@@ -181,24 +182,28 @@ class CallHandler(object):
                 attribute_name, attribute_params = attribute_params[0], attribute_params[1:]
 
                 if attribute_name == "default":
-                    assert len(attribute_params) == 1
+                    assert len(attribute_params) == 1, \
+                        "'default' attribute of %s should have one parameter, but parameters are '%s'" % (self.name, attribute_params)
                     self.arguments[pos].default_value = attribute_params[0]
                 elif attribute_name == "size":
-                    assert len(attribute_params) > 0
+                    assert len(attribute_params) > 0, \
+                        "'size' attribute of %s should have at least one parameter, but parameters are '%s'" % (self.name, attribute_params)
                     self.arguments[pos].size = attribute_params
                     try:
                         self.arguments[pos].contained_type = ctypes_from_gccxml(lib, argument.type.base)
                     except AttributeError:
                         raise TypeError("argument %s has a size attribute but is not of pointer type" % argument.name)
                 elif attribute_name == "out":
-                    assert len(attribute_params) == 0
+                    assert len(attribute_params) == 0, \
+                        "'out' attribute of %s should have no parameters, but parameters are '%s'" % (self.name, attribute_params)
                     self.arguments[pos].out = True
                     try:
                         self.arguments[pos].contained_type = ctypes_from_gccxml(lib, argument.type.base)
                     except AttributeError:
                         raise TypeError("argument %s has an out attribute but is not of pointer type" % argument.name)
                 elif attribute_name == "value":
-                    assert len(attribute_params) == 1
+                    assert len(attribute_params) == 1, \
+                        "'value' attribute of %s should have one parameter, but parameters are '%s'" % (self.name, attribute_params)
                     self.arguments[pos].value = attribute_params[0]
 
     def __call__(self, *args, **kwargs):
