@@ -11,7 +11,7 @@ import pygccxml
 # TODO suppress pygccxml output and popen deprecation warning
 # TODO handle string arguments
 # TODO convert lists to arrays when necessary
-# TODO exclude reserved and deprecated functions
+# TODO exclude hidden functions
 
 def get_defines(headerfile, progname="gccxml"):
     stdout, stderr = subprocess.Popen([progname, "-E", "-dM", headerfile], stdout=subprocess.PIPE).communicate()
@@ -152,7 +152,7 @@ class CallHandler(object):
         else:
             return objs
 
-    def __init__(self, lib, func, declaration):
+    def __init__(self, lib, func, declaration, exclude_hidden=True):
         self.lib = lib
         self.func = func
         self.name = declaration.name
@@ -172,6 +172,8 @@ class CallHandler(object):
                 assert len(attribute_params) == 1, \
                         "'returns' attribute of %s should have one parameter, but parameters are '%s'" % (self.name, attribute_params)
                 self.returns = attribute_params[0]
+            elif attribute_name == "hidden" and exclude_hidden:
+                raise NotImplementedError("%s is marked as hidden" % self.name)
 
         # parse gccxml attributes for arguments from header file
         for pos, argument in enumerate(declaration.arguments or []):
