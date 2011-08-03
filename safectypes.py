@@ -11,7 +11,6 @@ import pygccxml
 # TODO suppress pygccxml output and popen deprecation warning
 # TODO handle string arguments
 # TODO convert lists to arrays when necessary
-# TODO exclude hidden functions
 
 def get_defines(headerfile, progname="gccxml"):
     stdout, stderr = subprocess.Popen([progname, "-E", "-dM", headerfile], stdout=subprocess.PIPE).communicate()
