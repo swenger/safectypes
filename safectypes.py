@@ -10,6 +10,7 @@ import pygccxml
 
 # TODO suppress pygccxml output and popen deprecation warning
 # TODO convert lists to arrays and back when necessary
+# TODO docstrings for structs
 
 def get_defines(headerfile, progname="gccxml"):
     stdout, stderr = subprocess.Popen([progname, "-E", "-dM", headerfile], stdout=subprocess.PIPE).communicate()
