@@ -34,3 +34,9 @@ int multiply(const int w, const int h, float *result, const float *a, const floa
 	return 0;
 }
 
+_returns_(okay) int mysincos(double value, _out_ double *s, _out_ double *c) {
+	*s = sin(value);
+	*c = cos(value);
+	return okay;
+}
+

@@ -41,11 +41,7 @@ _returns_(0) int multiply(
         _size_(w,h) const float *b
         );
 
-_returns_(okay) int mysincos(double value, _out_ double *s, _out_ double *c) {
-	*s= sin(value);
-	*c= cos(value);
-	return okay;
-}
+_returns_(okay) int mysincos(double value, _out_ double *s, _out_ double *c);
 
 #endif
 
