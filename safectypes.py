@@ -320,12 +320,22 @@ class CallHandler(object):
             returns = type(retval)(eval(self.returns, d))
             if retval != returns:
                 raise RuntimeError("%s returned %s instead of %s (%s)" % (self.name, repr(retval), self.returns, returns))
-            if len(outputs) == 1:
+            if len(outputs) == 0:
+                return None
+            elif len(outputs) == 1:
                 return outputs[0]
             else:
                 return tuple(outputs)
         else:
-            return (retval,) + tuple(outputs)
+            if self.func.restype is None:
+                if len(outputs) == 0:
+                    return None
+                elif len(outputs) == 1:
+                    return outputs[0]
+                else:
+                    return tuple(outputs)
+            else:
+                return (retval,) + tuple(outputs)
 
 def load_dll(lib_name, header_name):
     lib = ctypes.CDLL(lib_name)
