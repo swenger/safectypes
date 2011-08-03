@@ -1,9 +1,11 @@
 #include "mytest.h"
 
 #include <stdio.h>
+#include <string.h>
 
-void print_string(const char *s) {
+int print_string(const char *s) {
 	printf("'%s'\n", s);
+	return strlen(s);
 }
 
 void print_string_fix(const char *s, int l) {

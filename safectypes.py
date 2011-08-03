@@ -9,8 +9,7 @@ import pygccxml
 # see also http://starship.python.net/crew/theller/ctypes/old/codegen.html
 
 # TODO suppress pygccxml output and popen deprecation warning
-# TODO handle string arguments
-# TODO convert lists to arrays when necessary
+# TODO convert lists to arrays and back when necessary
 
 def get_defines(headerfile, progname="gccxml"):
     stdout, stderr = subprocess.Popen([progname, "-E", "-dM", headerfile], stdout=subprocess.PIPE).communicate()
@@ -123,11 +122,10 @@ class ValidateEqual(object):
             raise self.exc("%s returned %s" % (func.__name__, result))
 
 class Argument(object):
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, name, dtype):
+        self.name, self.dtype = name, dtype
 
 class CallHandler(object):
-    # TODO autogenerate docstring
     attribute_re = re.compile(r'\A(\w+)\s*\(\s*(.*)\s*\)\s*')
 
     @staticmethod
@@ -156,7 +154,7 @@ class CallHandler(object):
         self.func = func
         self.name = declaration.name
         self.returns = None
-        self.arguments = [Argument(a.name) for a in declaration.arguments]
+        self.arguments = [Argument(a.name, a.type) for a in declaration.arguments]
 
         # parse gccxml attributes for function from header file
         attributes = CallHandler.parse_parentheses(declaration.attributes or "", " ")
@@ -214,6 +212,32 @@ class CallHandler(object):
                     assert len(attribute_params) == 0, \
                         "'string' attribute of %s should have no parameters, but parameters are '%s'" % (self.name, attribute_params)
                     self.arguments[pos].string = True
+
+        def declaration_from_arg(arg):
+            if "size" in arg.__dict__:
+                return "%s %s[%s]" % (arg.dtype.base, arg.name, ", ".join(arg.size))
+            else:
+                try:
+                    return "%s %s" % (arg.dtype.base, arg.name)
+                except AttributeError:
+                    return "%s %s" % (arg.dtype, arg.name)
+
+        # build docstring
+        outputs = ((["%s retval" % self.func.restype.__name__[2:]] if self.func.restype and not self.returns else [])
+                + [declaration_from_arg(arg) for arg in self.arguments if "out" in arg.__dict__]) or ["None"]
+        args, kwargs = [], []
+        for arg in self.arguments:
+            declaration = declaration_from_arg(arg)
+
+            if "value" in arg.__dict__:
+                pass
+            elif "default_value" in arg.__dict__:
+                args.append("%s=%s" % (declaration, repr(arg.default_value)))
+            elif "out" in arg.__dict__:
+                kwargs.append("%s=[new output]" % declaration)
+            else:
+                args.append("%s" % declaration)
+        self.__doc__ = "%s(%s) -> %s" % (self.name, ", ".join(args + kwargs), ", ".join(outputs))
 
     def __call__(self, *args, **kwargs):
         n_args_max = sum("value" not in a.__dict__ for a in self.arguments)
@@ -347,12 +371,17 @@ class CallHandler(object):
                 else:
                     return tuple(outputs)
             else:
-                return (retval,) + tuple(outputs)
+                if len(outputs) == 0:
+                    return retval
+                else:
+                    return (retval,) + tuple(outputs)
 
 def load_dll(lib_name, header_name):
     lib = ctypes.CDLL(lib_name)
     global_variables = get_defines(header_name)
     for key, value in global_variables.items(): # handle #defined constants (for use in attributes and as module constants)
+        if key.startswith("_"):
+            continue
         try:
             value = eval(value) # TODO C-style evaluation
         except:

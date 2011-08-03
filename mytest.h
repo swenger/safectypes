@@ -18,7 +18,7 @@ struct Rect {
     struct Point b;
 };
 
-void print_string(_string_ const char *s);
+int print_string(_string_ const char *s);
 
 void print_string_fix(_string_ _size_(l) const char *s, _value_(len(s)) int l);
 
