@@ -7,6 +7,7 @@
 #define _returns_(X) __attribute((gccxml("returns", #X)))
 #define _default_(X) __attribute((gccxml("default", #X)))
 #define _value_(X) __attribute((gccxml("value", #X)))
+#define _hidden_ __attribute((gccxml("hidden")))
 #define _reserved_ __attribute((gccxml("hidden")))
 #define _deprecated_ __attribute((gccxml("hidden")))
 #define _string_ __attribute((gccxml("string")))
@@ -16,6 +17,7 @@
 #define _returns_(X)
 #define _default_(X)
 #define _value_(X)
+#define _hidden_
 #define _reserved_
 #define _deprecated_
 #define _string_
