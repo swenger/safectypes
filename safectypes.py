@@ -101,7 +101,7 @@ def numpy_from_ctypes(t):
             ctypes.c_int16: numpy.int16,
             ctypes.c_uint64: numpy.uint64,
             ctypes.c_ubyte: numpy.ubyte,
-            ctypes.c_char: numpy.char,
+            ctypes.c_char: numpy.byte, # numpy.char,
             ctypes.c_uint32: numpy.uint32,
             ctypes.c_float: numpy.float32,
             ctypes.c_int8: numpy.int8,
@@ -207,11 +207,16 @@ class CallHandler(object):
                     assert len(attribute_params) == 1, \
                         "'value' attribute of %s should have one parameter, but parameters are '%s'" % (self.name, attribute_params)
                     self.arguments[pos].value = attribute_params[0]
+                elif attribute_name == "string":
+                    assert len(attribute_params) == 0, \
+                        "'string' attribute of %s should have no parameters, but parameters are '%s'" % (self.name, attribute_params)
+                    self.arguments[pos].string = True
 
     def __call__(self, *args, **kwargs):
         n_args_max = sum("value" not in a.__dict__ for a in self.arguments)
         n_args_min = sum("value" not in a.__dict__ and "default_value" not in a.__dict__ and "out" not in a.__dict__ for a in self.arguments)
         n_args_given = len(args)
+        # TODO if the argument s is a string but an array is expected, apply numpy.frombuffer(s, dtype=numpy.byte)
 
         args = list(args)
         arguments = []
@@ -310,6 +315,10 @@ class CallHandler(object):
             if "out" in arg.__dict__:
                 if arguments[pos].__class__.__module__ == "ctypes" and arguments[pos].__class__.__name__.startswith("c_"):
                     outputs.append(arguments[pos].value)
+                elif "string" in arg.__dict__:
+                    s = arguments[pos].tostring()
+                    i = s.find("\0")
+                    outputs.append(s[:i] if i >= 0 else s) # terminate string at first null byte
                 else:
                     outputs.append(arguments[pos])
     

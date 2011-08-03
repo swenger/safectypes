@@ -20,6 +20,10 @@ struct Rect {
 
 void print_string(_string_ const char *s);
 
+void print_string_fix(_string_ _size_(l) const char *s, _value_(len(s)) int l);
+
+void get_name(_out_ _string_ _size_(l) char *s, int l);
+
 float area(const struct Rect *r);
 
 _returns_(OK) int rect_from_center(

@@ -6,6 +6,15 @@ void print_string(const char *s) {
 	printf("'%s'\n", s);
 }
 
+void print_string_fix(const char *s, int l) {
+	printf("%d characters in '%s'\n", l, s);
+}
+
+void get_name(char *s, int l) {
+	const char name[] = "Guido";
+	strncpy(s, name, l);
+}
+
 float area(const struct Rect *r) {
     return (r->a.x - r->b.x) * (r->a.y - r->b.y);
 }
