@@ -293,6 +293,15 @@ class CallHandler(object):
             # argument is missing
             raise TypeError("%s() takes at least %d non-keyword arguments (%d given)" % (self.name, n_args_min, n_args_given))
 
+        # parse remaining positional arguments for out args
+        for pos, arg in enumerate(self.arguments):
+            if "out" in arg.__dict__:
+                try:
+                    arguments[pos] = args.pop(0)
+                    args_to_create.pop(0)
+                except KeyError:
+                    break
+
         # make sure no positional arguments remain
         if args:
             raise TypeError("%s() takes at most %d non-keyword arguments (%d given)" % (self.name, n_args_max, n_args_given))
