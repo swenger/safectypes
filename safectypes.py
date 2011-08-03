@@ -160,7 +160,7 @@ class CallHandler(object):
         self.arguments = [Argument(a.name) for a in declaration.arguments]
 
         # parse gccxml attributes for function from header file
-        attributes = CallHandler.parse_parentheses(declaration.attributes or "")
+        attributes = CallHandler.parse_parentheses(declaration.attributes or "", " ")
         for attribute in attributes:
             attribute_type, attribute_params = CallHandler.attribute_re.match(attribute).groups()
             if attribute_type != "gccxml":
@@ -174,6 +174,8 @@ class CallHandler(object):
                 self.returns = attribute_params[0]
             elif attribute_name == "hidden" and exclude_hidden:
                 raise NotImplementedError("%s is marked as hidden" % self.name)
+            else:
+                print "Unknown attribute for %s: %s" % (self.name, attribute_name)
 
         # parse gccxml attributes for arguments from header file
         for pos, argument in enumerate(declaration.arguments or []):
@@ -386,7 +388,10 @@ def load_dll(lib_name, header_name):
                 func.argtypes = [ctypes_from_gccxml(lib, a.type) for a in declaration.arguments]
                 setattr(lib, declaration.name, CallHandler(lib, func, declaration))
             except (AttributeError, NotImplementedError):
-                pass
+                try:
+                    delattr(lib, declaration.name)
+                except:
+                    pass
         elif isinstance(declaration, pygccxml.declarations.variable_t):
             # TODO cast value into correct type
             setattr(lib, declaration.name, declaration.value) # handle global variables (for use in attributes and as module constants)
