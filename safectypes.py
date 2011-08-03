@@ -232,7 +232,7 @@ class CallHandler(object):
             if "value" in arg.__dict__:
                 pass
             elif "default_value" in arg.__dict__:
-                args.append("%s=%s" % (declaration, repr(arg.default_value)))
+                args.append("%s=%s" % (declaration, arg.default_value))
             elif "out" in arg.__dict__:
                 kwargs.append("%s=[new output]" % declaration)
             else:
