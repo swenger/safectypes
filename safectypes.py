@@ -234,7 +234,7 @@ class CallHandler(object):
             elif "default_value" in arg.__dict__:
                 args.append("%s=%s" % (declaration, arg.default_value))
             elif "out" in arg.__dict__:
-                kwargs.append("%s=[new output]" % declaration)
+                kwargs.append("%s=<new output>" % declaration)
             else:
                 args.append("%s" % declaration)
         self.__doc__ = "%s(%s) -> %s" % (self.name, ", ".join(args + kwargs), ", ".join(outputs))
