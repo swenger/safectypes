@@ -18,6 +18,8 @@ struct Rect {
     struct Point b;
 };
 
+void print_string(_string_ const char *s);
+
 float area(const struct Rect *r);
 
 _returns_(OK) int rect_from_center(

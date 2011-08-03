@@ -1,5 +1,11 @@
 #include "mytest.h"
 
+#include <stdio.h>
+
+void print_string(const char *s) {
+	printf("'%s'\n", s);
+}
+
 float area(const struct Rect *r) {
     return (r->a.x - r->b.x) * (r->a.y - r->b.y);
 }
