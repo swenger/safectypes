@@ -224,7 +224,7 @@ class CallHandler(object):
                     return "%s %s" % (arg.dtype, arg.name)
 
         # build docstring
-        outputs = ((["%s retval" % self.func.restype.__name__[2:]] if self.func.restype and not self.returns else [])
+        outputs = ((["%s _" % self.func.restype.__name__[2:]] if self.func.restype and not self.returns else [])
                 + [declaration_from_arg(arg) for arg in self.arguments if "out" in arg.__dict__]) or ["None"]
         args, kwargs = [], []
         for arg in self.arguments:
