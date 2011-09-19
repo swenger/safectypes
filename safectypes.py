@@ -300,7 +300,7 @@ class CallHandler(object):
                 try:
                     arguments[pos] = args.pop(0)
                     args_to_create.pop(0)
-                except KeyError:
+                except (KeyError, IndexError):
                     break
 
         # make sure no positional arguments remain
